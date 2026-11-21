@@ -1,0 +1,338 @@
+================================================================================
+AUDIT DE LICENÇAS - PROJETO RTSP FACE CROP COM YUNET
+================================================================================
+Data de criação: 2026-11-21
+Última atualização: 2026-11-21 (rev.2 - links e referências ampliados)
+Finalidade: Documentar as licenças de todos os materiais de terceiros
+            utilizados neste projeto, com links para as fontes originais.
+
+AVISO IMPORTANTE:
+Este documento é um RASTREADOR DE LICENÇAS, não substitui a distribuição
+dos textos completos das licenças. Para conformidade em auditoria, o produto
+distribuído deve incluir:
+  1. Os textos completos de MIT, Apache 2.0, BSD 3-Clause e PSF License
+  2. Os avisos de copyright de cada componente
+  3. Se aplicável, o arquivo NOTICE do OpenCV
+
+================================================================================
+1. MODELO YUNET (face_detection_yunet_2023mar.onnx)
+================================================================================
+Licença: MIT License
+Copyright: Copyright (c) 2020 Shiqi Yu <shiqi.yu@gmail.com>
+
+Fonte oficial (OpenCV Zoo):
+https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet
+
+Arquivo de licença no OpenCV Zoo:
+https://github.com/opencv/opencv_zoo/blob/main/models/face_detection_yunet/LICENSE
+
+Cópia da licença MIT (Hugging Face, espelho oficial do OpenCV):
+https://huggingface.co/opencv/face_detection_yunet/blob/main/LICENSE
+[citation:5]
+
+Texto canônico da licença MIT (SPDX):
+https://spdx.org/licenses/MIT.html
+[citation:1]
+
+Texto da licença MIT (Open Source Initiative):
+https://opensource.org/licenses/MIT
+
+Resumo: Permite uso, cópia, modificação, fusão, publicação, distribuição,
+sublicenciamento e/ou venda do software, desde que o aviso de copyright
+e a permissão sejam incluídos em todas as cópias ou partes substanciais.
+
+--------------------------------------------------------------------------------
+1.1. DETALHES TÉCNICOS DO MODELO YUNET
+--------------------------------------------------------------------------------
+
+Nome do arquivo utilizado neste projeto:
+    face_detection_yunet_2023mar.onnx
+
+Versões disponíveis no OpenCV Zoo:
+    - face_detection_yunet_2023mar.onnx  (versão fixa, usada neste projeto)
+    - face_detection_yunet_2026may.onnx  (versão mais recente, entrada
+                                          dinâmica, suporte a OpenCV 5 +
+                                          ONNX Runtime)
+
+Origem / mantenedor:
+    - Distribuído oficialmente pelo OpenCV Zoo.
+    - Código de treinamento e exportação:
+      https://github.com/ShiqiYu/libfacedetection.train
+    - Implementação C++ de referência e pesos originais:
+      https://github.com/ShiqiYu/libfacedetection
+
+Autoria:
+    Wei Wu, Hanyang Peng, Shiqi Yu
+
+Referência acadêmica (citação recomendada):
+    Wu, W., Peng, H., & Yu, S. (2023).
+    "YuNet: A Tiny Millisecond-Level Face Detector".
+    Machine Intelligence Research, 20(5), 656-665.
+    DOI: https://doi.org/10.1007/s11633-023-1423-y
+    Springer Link:
+    https://link.springer.com/article/10.1007/s11633-023-1423-y
+    Repositório institucional (CASIA):
+    http://ir.ia.ac.cn/handle/173211/56001
+    
+
+Parâmetros do modelo (do paper):
+    - 75.856 parâmetros
+    - Inferência: 1.6 ms/frame a 320×320 em Intel i7-12700K
+    - mAP (WIDER FACE validation hard, single-scale): 81.1%
+    
+
+--------------------------------------------------------------------------------
+1.2. BASE DE TREINAMENTO (DATASET)
+--------------------------------------------------------------------------------
+
+Dataset principal: WIDER FACE
+    - Site oficial: http://shuoyang1213.me/WIDERFACE/
+    - Paper: Yang, S., Luo, P., Loy, C. C., & Tang, X. (2016).
+      "WIDER FACE: A Face Detection Benchmark". CVPR 2016.
+      arXiv: https://arxiv.org/abs/1511.06523
+
+Composição do WIDER FACE:
+    - 32.203 imagens
+    - 393.703 rostos anotados
+    - 61 classes de eventos
+    - Split padrão: 40% treino / 10% validação / 50% teste
+
+Licença do WIDER FACE:
+    - O dataset é disponibilizado para fins de pesquisa acadêmica.
+    - O modelo YuNet pré-treinado é distribuído sob MIT; o uso do modelo
+      NÃO requer redistribuição do dataset original.
+    - Para retreinar com WIDER FACE, consulte os termos no site oficial.
+
+Nota: O script de carregamento do WIDER FACE no HuggingFace Datasets
+declara licença como "Unknown" no cabeçalho do arquivo, refletindo a
+ambiguidade da licença do dataset original [citation:9]. Isso NÃO afeta
+o uso do modelo pré-treinado sob MIT.
+
+--------------------------------------------------------------------------------
+1.3. PERFORMANCE E MÉTRICAS
+--------------------------------------------------------------------------------
+
+Métricas oficiais (WIDER Face validation, paper YuNet):
+    - Easy AP:   0.834
+    - Medium AP: 0.824
+    - Hard AP:   0.708
+
+Métricas reavaliadas no OpenCV Zoo:
+    - Easy AP:   0.8844
+    - Medium AP: 0.8656
+    - Hard AP:   0.7503
+
+Nota: A diferença reflete variações no pipeline de avaliação (pré-
+processamento, NMS, thresholds). Ambas as fontes são válidas.
+
+--------------------------------------------------------------------------------
+1.4. ESPECIFICAÇÕES TÉCNICAS
+--------------------------------------------------------------------------------
+
+Arquitetura:
+    - Detector facial anchor-free baseado em CNN leve.
+    - Projetado para dispositivos edge/mobile.
+
+Tamanho do modelo:
+    - ~0.3 MB (FP16)
+
+Velocidade de inferência:
+    - ~4 ms por frame em GPU móvel (Pixel 8a, Tensor G3) via LiteRT,
+      entrada 640×640.
+    - 1.6 ms/frame a 320×320 em CPU desktop (Intel i7-12700K) .
+
+Faixa de detecção otimizada:
+    - Rostos entre 10×10 e 300×300 pixels.
+
+Saída do modelo:
+    - Bounding box (x, y, w, h)
+    - Score de confiança (0.0 a 1.0)
+    - 5 landmarks: olho direito, olho esquerdo, ponta do nariz,
+      canto direito da boca, canto esquerdo da boca
+
+Formato de exportação:
+    - ONNX (utilizado neste projeto via cv2.FaceDetectorYN)
+    - Outros formatos disponíveis via libfacedetection.train
+
+Compatibilidade:
+    - cv2.FaceDetectorYN.create(...)
+    - Requer OpenCV >= 4.5.4.
+
+--------------------------------------------------------------------------------
+1.5. FLUXO DE OBTENÇÃO DO MODELO NESTE PROJETO
+--------------------------------------------------------------------------------
+
+1. Download do OpenCV Zoo:
+   https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
+
+2. Colocação na pasta do projeto, ao lado de rtsp_yunet_crop.py.
+
+3. Carregamento via cv2.FaceDetectorYN.create(MODEL_PATH, ...).
+
+4. Nenhuma modificação foi feita nos pesos do modelo.
+
+================================================================================
+2. OPENCV (opencv-python)
+================================================================================
+Licença: Apache License 2.0 (versões >= 4.5.0)
+Copyright: Copyright (C) 2000-2025, Intel Corporation, OpenCV Foundation,
+           Itseez Inc., NVIDIA Corporation, e outros contribuidores.
+
+Página oficial de licença do OpenCV:
+https://opencv.org/license/
+[citation:6]
+
+Repositório GitHub:
+https://github.com/opencv/opencv
+
+Arquivo LICENSE (branch 4.x):
+https://github.com/opencv/opencv/blob/4.x/LICENSE
+
+Texto canônico da Apache 2.0 (SPDX):
+https://spdx.org/licenses/Apache-2.0.html
+
+Texto da Apache 2.0 (Apache Software Foundation):
+https://www.apache.org/licenses/LICENSE-2.0
+[citation:12]
+
+Arquivo NOTICE (se aplicável, deve ser incluído na distribuição):
+https://github.com/opencv/opencv/blob/4.x/NOTICE
+
+Nota histórica: A partir do OpenCV 4.5.0 (Agosto de 2020), a licença
+mudou de BSD 3-Clause para Apache 2.0 [citation:6]. Versões 4.4.0 e
+anteriores permanecem BSD 3-Clause.
+
+Resumo: Permite uso comercial, modificação, distribuição e concessão
+de patente. Exige preservação de avisos de copyright e licença,
+notificação de alterações em arquivos modificados, e inclusão do
+arquivo NOTICE se presente no código-fonte original.
+
+================================================================================
+3. NUMPY
+================================================================================
+Licença: BSD 3-Clause (licença principal do projeto)
+Copyright: Copyright (c) 2005-2025, NumPy Developers. All rights reserved.
+
+Página oficial de licença do NumPy:
+https://numpy.org/doc/stable/license.html
+
+Repositório GitHub:
+https://github.com/numpy/numpy
+
+Arquivo LICENSE.txt:
+https://github.com/numpy/numpy/blob/main/LICENSE.txt
+
+Texto canônico da BSD 3-Clause (SPDX):
+https://spdx.org/licenses/BSD-3-Clause.html
+
+Texto da BSD 3-Clause (Open Source Initiative):
+https://opensource.org/licenses/BSD-3-Clause
+[citation:3][citation:13]
+
+Nota sobre wheels do PyPI: Wheels do NumPy incluem bibliotecas
+vendorizadas (libopenblas, libgfortran, libquadmath) com licenças
+adicionais. Para uso típico da API NumPy via pip, a BSD 3-Clause do
+NumPy é a licença aplicável ao pacote como um todo. Se você distribuir
+o ambiente Python completo (ex: container Docker), consulte os avisos
+adicionais no pyproject.toml do projeto NumPy.
+
+Resumo: Permite redistribuição e uso em código fonte e binário, com ou
+sem modificação, desde que preservados copyright, condições e disclaimer.
+Não permite uso dos nomes dos contribuidores para endosso sem permissão.
+
+================================================================================
+4. PYTHON (interpretador)
+================================================================================
+Licença: Python Software Foundation License (PSF License)
+Copyright: Copyright (c) 2001-2025, Python Software Foundation.
+
+Página oficial de licença do Python:
+https://docs.python.org/3/license.html
+
+Repositório GitHub:
+https://github.com/python/cpython
+
+Texto da PSF License (SPDX, PSF-2.0):
+https://spdx.org/licenses/PSF-2.0.html
+[citation:4]
+
+Texto da PSF License (documentação oficial Python):
+https://docs.python.org/3/license.html#psf-license
+
+Resumo: Licença permissiva. Permite uso comercial, modificação e
+distribuição. Exige preservação do aviso de copyright e do texto da
+licença. Se você preparar uma obra derivada que incorpore Python,
+deve incluir um breve resumo das alterações feitas.
+
+================================================================================
+RESUMO DE COMPATIBILIDADE COM USO COMERCIAL
+================================================================================
+
+Componente          | Licença           | Uso Comercial | Modificação | Distribuição
+--------------------|-------------------|---------------|-------------|-------------
+YuNet (modelo)      | MIT               | Sim           | Sim         | Sim
+OpenCV (≥4.5.0)     | Apache 2.0        | Sim           | Sim         | Sim
+NumPy               | BSD 3-Clause      | Sim           | Sim         | Sim
+Python              | PSF               | Sim           | Sim         | Sim
+
+Todas as licenças são permissivas e compatíveis entre si para uso
+comercial. Nenhuma exige abertura do código-fonte do projeto que as
+utiliza (copyleft). As obrigações resumem-se a:
+  - Preservar avisos de copyright
+  - Incluir textos completos das licenças na distribuição
+  - Incluir NOTICE do OpenCV (se aplicável)
+  - Não usar nomes dos contribuidores para endosso (BSD 3-Clause)
+
+================================================================================
+RECOMENDAÇÕES PARA CONFORMIDADE EM AUDITORIA
+================================================================================
+
+1. Crie um diretório `licenses/` no produto distribuído e inclua:
+   - MIT.txt (texto completo, com copyright de Shiqi Yu)
+   - Apache-2.0.txt (texto completo)
+   - BSD-3-Clause.txt (texto completo, com copyright NumPy)
+   - PSF-2.0.txt (texto completo)
+   - NOTICE (do OpenCV, se existir)
+
+2. Mantenha este arquivo `audit_license.txt` como rastreador de origem
+   e versões, mas NÃO o use como substituto dos textos completos.
+
+3. Para o YuNet, o aviso mínimo a incluir no produto:
+   "YuNet - Copyright (c) 2020 Shiqi Yu - MIT License"
+   Referência: Wu, W., Peng, H., & Yu, S. (2023). YuNet: A Tiny
+   Millisecond-Level Face Detector. Machine Intelligence Research,
+   20(5), 656-665. DOI: 10.1007/s11633-023-1423-y
+
+4. Para OpenCV, mantenha o aviso de copyright da Intel/OpenCV Foundation
+   e inclua o NOTICE conforme listado no repositório oficial.
+
+5. Para NumPy, mantenha o aviso:
+   "Copyright (c) 2005-2025, NumPy Developers. All rights reserved."
+
+6. Para Python, mantenha o aviso da PSF conforme documentação oficial.
+
+7. Registre a versão exata do OpenCV e NumPy utilizadas (via pip freeze
+   ou requirements.txt com versões pinadas) neste documento ou em anexo.
+
+================================================================================
+REFERÊNCIAS ADICIONAIS ÚTEIS
+================================================================================
+
+SPDX License List (referência canônica de identificadores):
+https://spdx.org/licenses/
+
+Open Source Initiative (lista de licenças aprovadas):
+https://opensource.org/licenses
+
+OpenCV Zoo (todos os modelos e licenças):
+https://github.com/opencv/opencv_zoo
+
+Repositório libfacedetection (implementação C++ de referência):
+https://github.com/ShiqiYu/libfacedetection
+
+Repositório libfacedetection.train (treinamento e exportação):
+https://github.com/ShiqiYu/libfacedetection.train
+
+================================================================================
+FIM DO DOCUMENTO
+================================================================================

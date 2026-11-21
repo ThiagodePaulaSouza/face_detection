@@ -1,0 +1,1 @@
+"""Projeto YuNet Face Crop."""
