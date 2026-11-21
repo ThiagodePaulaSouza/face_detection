@@ -1,181 +1,167 @@
-# RTSP Face Crop com YuNet
+# RTSP Face Crop com YuNet (multi-câmera)
 
-Projeto em Python que conecta a uma câmera RTSP, detecta rostos usando o modelo **YuNet** (via OpenCV) e salva os recortes (crops) automaticamente em disco.
+Projeto em Python que conecta a uma ou mais câmeras RTSP, detecta rostos com o modelo **YuNet** (via OpenCV) e salva automaticamente os recortes (crops) em disco, organizados por fonte.
 
-O YuNet é distribuído sob licença **MIT**, sendo totalmente livre para uso comercial.
+O YuNet é distribuído sob licença **MIT**, sendo livre para uso comercial.
+
+**Principais recursos:**
+
+- 🎥 **Multi-câmera**: 1 thread por fonte RTSP, isolamento total entre câmeras
+- 🔄 **Reconexão automática** se o stream cair
+- 🧠 **Download automático** do modelo YuNet (se ausente)
+- ⚡ **Detecção opcional em GPU** (CUDA) com fallback para CPU
+- 🖥️ **Headless-safe**: roda em servidores/Docker sem precisar comentar código
+- 📝 **Logging estruturado** com rotação de arquivo em `./logs/`
+- 📸 **Snapshots de debug** opcionais por fonte
 
 ---
 
 ## 📋 Requisitos
 
 - Python **3.8+**
-- Acesso à câmera RTSP (com URL, usuário e senha)
-- Modelo YuNet `.onnx` (instruções abaixo)
+- Acesso às câmeras RTSP (URL, usuário e senha)
+- Dependências Python: `opencv-python`, `numpy`
 
 ---
 
 ## 🚀 Instalação
 
-### 1. Clone ou baixe os arquivos do projeto
+### 1. Estrutura de arquivos
 
-Coloque em uma pasta os seguintes arquivos:
+Coloque todos os arquivos do projeto na estrutura abaixo:
 
 ```
 projeto/
-├── rtsp_yunet_crop.py
-├── requirements.txt
-└── README.md
+├── main.py
+├── utils.py
+└── src/
+    └── face_crop/
+        ├── callbacks.py
+        ├── detector.py
+        ├── feed.py
+        ├── headless.py
+        ├── logging_setup.py
+        └── worker.py
 ```
 
-### 2. Crie um ambiente virtual (recomendado)
+> Não é preciso baixar o `.onnx` manualmente: `utils.setup()` faz o download automaticamente na primeira execução.
+
+### 2. Ambiente virtual (recomendado)
 
 ```bash
 python -m venv venv
 ```
 
-Ative o ambiente:
+Ative:
 
-- **Linux/macOS**:
-  ```bash
-  source venv/bin/activate
-  ```
-- **Windows (PowerShell)**:
-  ```powershell
-  .\venv\Scripts\Activate.ps1
-  ```
-- **Windows (CMD)**:
-  ```cmd
-  venv\Scripts\activate.bat
-  ```
+- **Linux/macOS**: `source venv/bin/activate`
+- **Windows (PowerShell)**: `.\venv\Scripts\Activate.ps1`
+- **Windows (CMD)**: `venv\Scripts\activate.bat`
 
 ### 3. Instale as dependências
 
 ```bash
-pip install -r requirements.txt
+pip install opencv-python numpy
 ```
 
-### 4. Baixe o modelo YuNet
-
-Baixe o arquivo `face_detection_yunet_2023mar.onnx` diretamente do repositório oficial do OpenCV Zoo:
-
-**Link direto:**
-```
-https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
-```
-
-Ou via `wget` / `curl`:
-
-```bash
-# Linux/macOS
-wget https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
-
-# Windows PowerShell
-Invoke-WebRequest -Uri "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -OutFile "face_detection_yunet_2023mar.onnx"
-```
-
-Coloque o arquivo `.onnx` na **mesma pasta** do script `rtsp_yunet_crop.py`.
+> Para suporte a GPU, veja a seção [🖥️ GPU / CUDA](#-gpu--cuda).
 
 ---
 
 ## ⚙️ Configuração
 
-Abra o arquivo `rtsp_yunet_crop.py` e ajuste o bloco de configurações no topo:
+Toda a configuração de câmeras fica no topo de `main.py`, na lista `SOURCES`.
+
+### Configurando fontes
 
 ```python
-RTSP_URL = "rtsp://usuario:senha@192.168.1.100:554/stream"
-MODEL_PATH = "face_detection_yunet_2023mar.onnx"
-OUTPUT_DIR = "crops_faciais"
-SCORE_THRESHOLD = 0.6      # Confiança mínima
-NMS_THRESHOLD = 0.3
-SAVE_INTERVAL = 1.0        # Segundos entre salvamentos
-MIN_FACE_SIZE = 40         # Tamanho mínimo do rosto (px)
+SOURCES: list[dict] = [
+    {
+        "url": "rtsp://admin:senha@192.168.0.10:554/Streaming/Channels/101",
+        "name": "portaria",
+        # opcionais (sobrescrevem os defaults globais):
+        "score_threshold": 0.85,
+        "min_face_size": 80,
+        "debug_snapshot_seconds": 30.0,
+    },
+    {
+        "url": "rtsp://admin:senha@192.168.0.11:554/Streaming/Channels/101",
+        "name": "estacionamento",
+    },
+]
 ```
 
-### Parâmetros importantes
+| Campo                     | Descrição                                                                 |
+|---------------------------|---------------------------------------------------------------------------|
+| `url` **(obrigatório)**   | URL completa do stream RTSP, incluindo credenciais.                       |
+| `name` **(obrigatório)**  | Nome da fonte; usado como subpasta de saída e nos logs.                   |
+| `score_threshold`         | Confiança mínima (0–1). Default global: **0.9**.                          |
+| `min_face_size`           | Ignora rostos menores que esse valor (px). Default global: **100**.       |
+| `debug_snapshot_seconds`  | Intervalo (s) entre snapshots anotados. `0` desliga. Default: **0.0**.    |
 
-| Parâmetro         | Descrição                                                                 |
-|-------------------|---------------------------------------------------------------------------|
-| `RTSP_URL`        | URL completa do stream RTSP, incluindo credenciais se necessário.         |
-| `SCORE_THRESHOLD` | Confiança mínima (0–1). Valores mais altos = menos falsos positivos.      |
-| `SAVE_INTERVAL`   | Intervalo em segundos entre crops salvos. Use `0` para salvar todos.      |
-| `MIN_FACE_SIZE`   | Ignora rostos menores que esse valor (em pixels).                         |
+### Defaults globais (topo de `main.py`)
+
+```python
+OUTPUT_ROOT = "./results"           # raiz de saída
+DEFAULT_SCORE_THRESHOLD = 0.9       # confiança mínima
+DEFAULT_MIN_FACE_SIZE = 100         # tamanho mínimo do rosto (px)
+DEFAULT_DEBUG_SNAPSHOT = 0.0        # 0 = desligado
+SAVE_INTERVAL = 1.0                 # intervalo entre crops (s)
+SHOW_FRAMES = True                  # abrir janela de preview
+TRY_GPU = True                      # tentar usar CUDA
+```
+
+> **Nota**: `score_threshold` e `min_face_size` são aplicados por-fonte. Um valor mais alto no threshold reduz falsos positivos; `min_face_size` maior filtra rostos distantes.
+
+### Variáveis de ambiente (`utils.py`)
+
+Definidas com `setdefault` — só valem se ainda não existirem no ambiente:
+
+| Variável                     | Default | Descrição                                                 |
+|------------------------------|---------|-----------------------------------------------------------|
+| `CUDA_VISIBLE_DEVICES`       | `"1"`   | Índice da GPU usada. **Ajuste** para `"0"` se tiver uma só. |
+| `OPENCV_FFMPEG_LOGLEVEL`     | `"-8"`  | Silencia mensagens do FFmpeg.                             |
+
+> ⚠️ Essas variáveis **precisam** estar definidas antes de qualquer `import cv2`. Por isso `main.py` importa `utils` primeiro. Se for importar o projeto de outro lugar, mantenha essa ordem.
 
 ---
 
 ## ▶️ Como executar
 
-Com o ambiente virtual ativado e o modelo baixado:
+Com o ambiente virtual ativado:
 
 ```bash
-python rtsp_yunet_crop.py
+python main.py
 ```
 
 ### O que acontece ao rodar
 
-1. O script conecta ao stream RTSP informado.
-2. Uma janela chamada **"RTSP - YuNet Detection"** abre mostrando o vídeo em tempo real com retângulos verdes ao redor dos rostos detectados.
-3. Cada rosto detectado é salvo na pasta `crops_faciais/` com nome no formato:
-   ```
-   face_20241121_143022_345_score0.87.jpg
-   ```
-4. Pressione **`q`** na janela de vídeo (ou `Ctrl+C` no terminal) para encerrar.
+1. `utils.setup()` cria `./results/`, garante o modelo `.onnx` (baixa se preciso) e configura logs em `./logs/`.
+2. Cada fonte em `SOURCES` vira uma thread (`Worker`) que:
+   - conecta ao RTSP via FFmpeg;
+   - instancia um `Detector` YuNet (tenta CUDA, cai pra CPU se indisponível);
+   - roda detecção frame a frame;
+   - salva crops (1 por `SAVE_INTERVAL` segundos por fonte);
+   - opcionalmente grava snapshots anotados em `debug/`.
+3. Se `SHOW_FRAMES=True`, abre uma janela por câmera (`RTSP - {name}`). Em ambiente headless, `try_imshow` detecta a falha e desabilita a janela automaticamente — o worker continua rodando.
+4. Log de progresso (`frames lidos`) a cada **30s** por worker.
+
+### Encerrar
+
+Pressione **`Ctrl+C`** no terminal. Sinais `SIGINT` e `SIGTERM` são capturados, o `stop_event` é setado, os workers terminam e o processo sai.
+
+Se algum worker travar (ex.: `cap.read()` bloqueado em RTSP), há um timeout de **3s** por join; se ainda vivo, o processo é encerrado com `os._exit(1)`.
 
 ### Saída esperada
 
 ```
-[INFO] Conectando a rtsp://...
-[INFO] Stream aberto: 1920x1080
-[SALVO] crops_faciais/face_20241121_143022_345_score0.87.jpg (score=0.87, size=210x210)
-[SALVO] crops_faciais/face_20241121_143023_812_score0.91.jpg (score=0.91, size=198x198)
+2025-01-15 14:30:22 | INFO    | MainThread         | __main__ | Modelo: /caminho/face_detection_yunet_2023mar.onnx
+2025-01-15 14:30:22 | INFO    | MainThread         | __main__ | Iniciando 2 worker(s)
+2025-01-15 14:30:23 | INFO    | worker-portaria    | src.face_crop.feed | [portaria] Conectado: 1920x1080
+2025-01-15 14:30:23 | INFO    | worker-portaria    | src.face_crop.detector | YuNet: backend CUDA FP16 (devices=1)
+2025-01-15 14:30:25 | INFO    | worker-portaria    | src.face_crop.callbacks | [portaria] Crop salvo: 20250115_143025_123_score0.94.jpg (score=0.94, 210x210)
 ...
-[FINALIZADO] Total de crops salvos: 42
-[FINALIZADO] Tempo de execução: 128.4s
 ```
-
----
-
-## 🐳 Execução sem interface gráfica (servidor / Docker)
-
-Em ambientes **headless** (servidores sem monitor, containers Docker, Raspberry Pi sem X11), o `cv2.imshow` falhará. Para rodar nesses casos, remova ou comente as linhas:
-
-```python
-cv2.imshow("RTSP - YuNet Detection", frame)
-if cv2.waitKey(1) & 0xFF == ord('q'):
-    break
-```
-
-E também remova o `cv2.destroyAllWindows()` no `finally`. O restante do script funciona normalmente, salvando os crops e podendo ser encerrado com `Ctrl+C`.
-
----
-
-## 🔧 Solução de problemas
-
-### ❌ `[ERRO] Não foi possível abrir o stream RTSP`
-
-- Verifique se a URL está correta (teste com **VLC** primeiro: `Mídia → Abrir Fluxo de Rede`).
-- Confirme usuário e senha na URL: `rtsp://admin:senha@IP:554/path`.
-- Verifique se o computador tem acesso à rede da câmera (ping, firewall).
-
-### ❌ `cv2.error: ... model file not found`
-
-- O arquivo `.onnx` não está na pasta correta ou tem nome diferente. Confirme o caminho em `MODEL_PATH`.
-
-### ❌ Erros de `avcodec` / `ffmpeg` no Linux
-
-Instale as bibliotecas de codec:
-
-```bash
-sudo apt install ffmpeg libavcodec-extra
-```
-
-### ❌ Detecção lenta
-
-- Reduza a resolução do stream na câmera (ex: 1280x720 em vez de 4K).
-- Ou redimensione o frame no código antes de passar ao detector (a bounding box precisará ser escalada proporcionalmente).
-
-### ❌ Conexão cai com frequência
-
-O script já tenta reconectar automaticamente. Se ainda assim falhar, aumente o `time.sleep(2)` na rotina de reconexão para `5`.
 
 ---
 
@@ -183,22 +169,143 @@ O script já tenta reconectar automaticamente. Se ainda assim falhar, aumente o 
 
 ```
 projeto/
-├── rtsp_yunet_crop.py
-├── requirements.txt
-├── README.md
-├── face_detection_yunet_2023mar.onnx
-└── crops_faciais/
-    ├── face_20241121_143022_345_score0.87.jpg
-    ├── face_20241121_143023_812_score0.91.jpg
-    └── ...
+├── main.py
+├── utils.py
+├── src/face_crop/...
+├── logs/
+│   └── face_crop.log                # rotação: 10 MB × 5 backups
+├── results/
+│   └── {name}/                      # ex.: portaria
+│       ├── crops/
+│       │   ├── 20250115_143025_123_score0.94.jpg
+│       │   └── ...
+│       └── debug/                   # só se debug_snapshot_seconds > 0
+│           └── snapshot_20250115_143030.jpg
+└── face_detection_yunet_2023mar.onnx
 ```
+
+- O nome da fonte é sanitizado (`[^a-zA-Z0-9_-]` → `_`) na pasta de `crops/`.
+- Formato dos crops: `{YYYYmmdd_HHMMSS_mmm}_score{score:.2f}.jpg`.
+
+---
+
+## 📝 Logs
+
+Logs vão para `./logs/face_crop.log` (rotação de 10 MB, 5 backups) e para o stdout, no formato:
+
+```
+YYYY-MM-DD HH:MM:SS | LEVEL   | threadName         | logger             | mensagem
+```
+
+Silencia `urllib3` (nível WARNING). Para ajustar nível, modifique `setup_logging("./logs", logging.INFO)` em `main.py` (use `logging.DEBUG` para ver `input_size` do YuNet etc.).
+
+---
+
+## 🖥️ GPU / CUDA
+
+`TRY_GPU=True` (default) faz o `Detector`:
+
+1. Checar `cv2.cuda.getCudaEnabledDeviceCount()`.
+2. Se > 0, setar `DNN_BACKEND_CUDA` + `DNN_TARGET_CUDA_FP16`.
+3. Qualquer falha → **fallback silencioso para CPU** (com log de warning).
+
+**Importante**: `pip install opencv-python` **não** vem com CUDA. Para GPU:
+
+- Compile o OpenCV com `-DWITH_CUDA=ON` **ou**
+- Use uma build pronta com CUDA (ex.: [opencv-python-cuda](https://pypi.org/project/opencv-python-cuda/) ou imagem Docker com CUDA).
+
+Para detecção em tempo real com YuNet, **CPU costuma ser suficiente** na maioria dos casos (modelo leve). Use GPU só se estiver com muitas fontes simultâneas em 4K.
+
+Se você só tem **uma** GPU, ajuste `CUDA_VISIBLE_DEVICES`:
+
+```bash
+# Linux/macOS
+CUDA_VISIBLE_DEVICES=0 python main.py
+
+# Windows PowerShell
+$env:CUDA_VISIBLE_DEVICES=0; python main.py
+```
+
+---
+
+## 🐳 Execução headless (servidor / Docker)
+
+**Não é necessário comentar código.** O `try_imshow` detecta a ausência de display e desabilita a janela automaticamente, mantendo o worker rodando normalmente.
+
+Para pular totalmente o `imshow` (economiza CPU), basta:
+
+```python
+SHOW_FRAMES = False
+```
+
+Exemplo de `Dockerfile` mínimo:
+
+```dockerfile
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir opencv-python-headless numpy
+# use opencv-python-headless em headless — mais leve
+CMD ["python", "main.py"]
+```
+
+> Troque `opencv-python` por `opencv-python-headless` em ambientes sem display — a API é idêntica, mas sem dependências de GUI.
+
+---
+
+## 🔧 Solução de problemas
+
+### ❌ `Falha ao abrir RTSP`
+
+- Teste a URL no **VLC** (`Mídia → Abrir Fluxo de Rede`) antes de rodar o código.
+- Confirme formato: `rtsp://usuario:senha@IP:554/path`.
+- Verifique firewall/rede (ping no IP da câmera).
+- O `Feed` já reconecta a cada **2s**; se a rede for instável, aumente `reconnect_delay` no `Worker` (`Feed(self.url, self.source_name)` → `Feed(self.url, self.source_name, reconnect_delay=5.0)`).
+
+### ❌ `Modelo não encontrado; baixando...` falha no download
+
+- Verifique acesso à internet a partir do host.
+- Baixe manualmente e coloque `face_detection_yunet_2023mar.onnx` na **raiz do projeto**:
+  ```bash
+  wget https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
+  ```
+
+### ❌ Erros de `avcodec` / `ffmpeg` no Linux
+
+```bash
+sudo apt install ffmpeg libavcodec-extra
+```
+
+### ❌ Detecção lenta
+
+- Reduza a resolução na câmera (ex.: 1280×720 em vez de 4K).
+- Aumente `min_face_size` para reduzir frames com muitos rostos distantes.
+- Verifique o log: `backend=cuda_fp16` indica GPU ativa; `backend=cpu` significa fallback.
+
+### ❌ `cv2.cuda` presente mas `getCudaEnabledDeviceCount()` retorna 0
+
+Sua build do OpenCV tem o módulo `cuda` compilado mas sem device acessível. Causas comuns:
+
+- Driver NVIDIA desatualizado.
+- Container sem `--gpus all`.
+- `CUDA_VISIBLE_DEVICES` aponta pra GPU inexistente (ex.: default `"1"` com só 1 GPU → ajuste pra `"0"`).
+
+O código já loga o motivo e cai para CPU automaticamente.
+
+### ❌ Workers ainda vivos após 3s (log `forçando saída`)
+
+Normal quando `cap.read()` está bloqueado em uma conexão RTSP morta (FFmpeg não respeita sempre `READ_TIMEOUT_MSEC`). O processo é encerrado via `os._exit(1)` — aceitável, pois a saída é intencional. Se for frequente, reduza `OPEN_TIMEOUT_MSEC`/`READ_TIMEOUT_MSEC` em `Feed` ou aumente `WORKER_JOIN_TIMEOUT` em `main.py`.
 
 ---
 
 ## 📜 Licença
 
 - **Código deste projeto**: livre para uso comercial e modificação.
-- **Modelo YuNet**: licença **MIT** (via [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)).
-- **OpenCV**: licença **Apache 2.0**.
+- **Modelo YuNet**: **MIT** (via [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)).
+- **OpenCV**: **Apache 2.0**.
 
-Ambas as licenças permitem uso comercial sem royalties.
+Ambas permitem uso comercial sem royalties.
+
+Para mais informações: [audit_license.txt](./audit_license.txt)
